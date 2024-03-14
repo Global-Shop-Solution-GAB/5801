@@ -1,0 +1,364 @@
+Program.Sub.ScreenSU.Start
+Gui.F_Main..Create
+Gui.F_Main..Caption("Positive Pay Export")
+Gui.F_Main..Size(4545,3270)
+Gui.F_Main..MinX(0)
+Gui.F_Main..MinY(0)
+Gui.F_Main..Position(0,0)
+Gui.F_Main..BackColor(-2147483633)
+Gui.F_Main..MousePointer(0)
+Gui.F_Main..Event(UnLoad,F_Main_UnLoad)
+Gui.F_Main..MaxButton(False)
+Gui.F_Main..Sizeable(False)
+Gui.F_Main.lblBegDate.Create(Label,"Start Date",True,960,255,0,225,225,True,0,"Arial",8,-2147483633,0)
+Gui.F_Main.dtpBegDate.Create(DatePicker)
+Gui.F_Main.dtpBegDate.Size(1935,285)
+Gui.F_Main.dtpBegDate.Position(150,435)
+Gui.F_Main.lblEndDate.Create(Label,"End Date",True,960,255,0,2400,225,True,0,"Arial",8,-2147483633,0)
+Gui.F_Main.dtpEndDate.Create(DatePicker)
+Gui.F_Main.dtpEndDate.Size(1935,285)
+Gui.F_Main.dtpEndDate.Position(2325,435)
+Gui.F_Main.lblFileName.Create(Label,"File Name",True,855,255,0,225,945,True,0,"Arial",8,-2147483633,0)
+Gui.F_Main.txtFileName.Create(TextBox,"",True,4125,300,0,150,1155,True,0,"Arial",8,-2147483643,1)
+Gui.F_Main.txtFileName.Event(LostFocus,txtFileName_LostFocus)
+Gui.F_Main.lblFileLoc.Create(Label,"Full Path for Folder",True,1575,255,0,225,1710,True,0,"Arial",8,-2147483633,0)
+Gui.F_Main.txtFileLoc.Create(TextBox,"",True,3615,300,0,150,1920,True,0,"Arial",8,-2147483643,1)
+Gui.F_Main.txtFileLoc.Event(LostFocus,txtFileLoc_LostFocus)
+Gui.F_Main.cmdFileLocBRW.Create(Button)
+Gui.F_Main.cmdFileLocBRW.Size(375,375)
+Gui.F_Main.cmdFileLocBRW.Position(3870,1875)
+Gui.F_Main.cmdFileLocBRW.Caption("^")
+Gui.F_Main.cmdFileLocBRW.Event(Click,cmdFileLocBRW_Click)
+Gui.F_Main.cmdGenerate.Create(Button)
+Gui.F_Main.cmdGenerate.Size(1125,420)
+Gui.F_Main.cmdGenerate.Position(240,2430)
+Gui.F_Main.cmdGenerate.Caption("Generate")
+Gui.F_Main.cmdGenerate.Event(Click,cmdGenerate_Click)
+Gui.F_Main.chkOpen.Create(CheckBox)
+Gui.F_Main.chkOpen.Size(1980,360)
+Gui.F_Main.chkOpen.Position(1605,2475)
+Gui.F_Main.chkOpen.Caption("Open file when done")
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.External.Include.Library("GCG_5801_Try_Catch.lib")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Author: BixRB
+'Date: 18 Dec 2019
+'Project for: Custom Rubber Products, Inc.
+'GCG_5801_AmegyBank_Pos_Pay.g2u
+'Export of positive pay to be sent to AmegyBank. Includes document to send to Amegy with export.
+V.Local.sFilePath.Declare
+V.Local.sFile.Declare
+V.Local.sDailyFile.Declare
+V.Local.iFileName.Declare
+F.Intrinsic.Control.Try
+
+F.Intrinsic.Control.If(V.Caller.Switches,=,"E")
+	'Menu item
+	F.ODBC.Connection!con.OpenCompanyConnection
+	F.Data.DataTable.CreateFromSQL("dtFile","con","select rtrim(DATA_KEY) as DATA_KEY, rtrim(VALUE) as VALUE from GCG_5801_DATA;",True)
+	F.Data.DataView.Create("dtFile","dvFileName",22,"DATA_KEY = 'FILE_NAME'",)
+	F.Data.DataView.Create("dtFile","dvFileLoc",22,"DATA_KEY = 'FILE_PATH'",)
+	F.Intrinsic.Control.If(V.DataView.dtFile!dvFileName.RowCount,=,0)
+		'File name not initialized
+		F.Data.DataTable.AddRow("dtFile","DATA_KEY","FILE_NAME","VALUE","TMTEST.ABCCo.txt")
+		F.Data.DataTable.SaveToDB("dtFile","con","GCG_5801_DATA","DATA_KEY",7)
+		F.Data.DataTable.AcceptChanges("dtFile")
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.If(V.DataView.dtFile!dvFileLoc.RowCount,=,0)
+		'File path not initalized
+		F.Intrinsic.String.Build("{0}\Custom\5801\",V.Caller.GlobalDir,V.Local.sFilePath)
+		F.Data.DataTable.AddRow("dtFile","DATA_KEY","FILE_PATH","VALUE",V.Local.sFilePath)
+		F.Data.DataTable.SaveToDB("dtFile","con","GCG_5801_DATA","DATA_KEY",7)
+		F.Data.DataTable.AcceptChanges("dtFile")
+	F.Intrinsic.Control.EndIf
+	F.ODBC.Connection!con.Close
+	
+	Gui.F_Main.txtFileName.Text(V.DataView.dtFile!dvFileName(0).VALUE!FieldVal)
+	Gui.F_Main.txtFileLoc.Text(V.DataView.dtFile!dvFileLoc(0).VALUE!FieldVal)
+	
+	Gui.F_Main..Show
+F.Intrinsic.Control.Else
+	'Daily Task Scheduler
+	F.ODBC.Connection!con.OpenCompanyConnection
+	F.Data.DataTable.CreateFromSQL("dtFile","con","select rtrim(DATA_KEY) as DATA_KEY, rtrim(VALUE) as VALUE from GCG_5801_DATA;",True)
+	F.ODBC.Connection!con.Close
+	
+	F.Data.DataView.Create("dtFile","dvFileName",22,"DATA_KEY = 'FILE_NAME'",)
+	F.Data.DataView.Create("dtFile","dvFileLoc",22,"DATA_KEY = 'FILE_PATH'",)
+	
+	F.Intrinsic.Control.If(V.DataView.dtFile!dvFileName.RowCount,!=,0,"and",V.DataView.dtFile!dvFileName.RowCount,!=,0)
+		'Export location is setup, run daily export
+		V.Local.sFile.Set(V.DataView.dtFile!dvFileName(0).VALUE!FieldVal)
+		F.Intrinsic.Math.Sub(V.Local.sFile.Length,4,V.Local.iFileName)
+		F.Intrinsic.String.Build("{0}_{1}{2}",V.Local.sFile.Left[V.Local.iFileName],V.Ambient.Date.FormatYYYYMMDD,V.Local.sFile.Right4,V.Local.sDailyFile)
+		F.Data.DataView.SetValue("dtFile","dvFileName",-1,"VALUE",V.Local.sDailyFile)
+		
+		F.Intrinsic.Control.CallSub(DailyExport)
+		
+		F.Data.DataView.SetValue("dtFile","dvFileName",-1,"VALUE",V.Local.sFile)
+		F.Intrinsic.Control.CallSub(RemoveOldFiles,"Length",V.Local.iFileName)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.If(V.Caller.Switches,=,"E")
+		F.Intrinsic.Control.CallSub(ErrorMessage,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"ProjectID","5801")
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.F_Main_UnLoad.Start
+F.Data.DataTable.Close("dtFile")
+F.Intrinsic.Control.End
+Program.Sub.F_Main_UnLoad.End
+
+Program.Sub.txtFileName_LostFocus.Start
+V.Local.sFileName.Declare
+V.Local.sFileExt.Declare
+F.Intrinsic.Control.Try
+
+V.Local.sFileName.Set(V.Screen.F_Main!txtFileName.Text.Trim)
+V.Local.sFileExt.Set(V.Local.sFileName.Right4)
+F.Intrinsic.Control.If(V.Local.sFileExt.UCase,!=,".TXT")
+	'File is missing extension, add it
+	F.Intrinsic.String.Build("{0}.txt",V.Local.sFileName,V.Local.sFileName)
+F.Intrinsic.Control.EndIf
+
+Gui.F_Main.txtFileName.Text(V.Local.sFileName)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMessage,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry
+Program.Sub.txtFileName_LostFocus.End
+
+Program.Sub.txtFileLoc_LostFocus.Start
+V.Local.sFileLoc.Declare
+F.Intrinsic.Control.Try
+
+V.Local.sFileLoc.Set(V.Screen.F_Main!txtFileLoc.Text.Trim)
+F.Intrinsic.Control.If(V.Local.sFileLoc.Right1,!=,"\")
+	F.Intrinsic.String.Build("{0}\",V.Local.sFileLoc,V.Local.sFileLoc)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.File.GetUNCName(V.Local.sFileLoc,V.Local.sFileLoc)
+
+Gui.F_Main.txtFileLoc.Text(V.Local.sFileLoc)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMessage,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry
+Program.Sub.txtFileLoc_LostFocus.End
+
+Program.Sub.cmdFileLocBRW_Click.Start
+V.Local.sRet.Declare
+F.Intrinsic.Control.Try
+
+F.Intrinsic.UI.FolderBrowser("Select Folder",V.Local.sRet)
+
+F.Intrinsic.Control.If(V.Local.sRet.IsNotCancel)
+	F.Intrinsic.String.Build("{0}\",V.Local.sRet,V.Local.sRet)
+	F.Intrinsic.File.GetUNCName(V.Local.sRet,V.Local.sRet)
+	
+	Gui.F_Main.txtFileLoc.Text(V.Local.sRet)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMessage,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdFileLocBRW_Click.End
+
+Program.Sub.cmdGenerate_Click.Start
+V.Local.sSQL.Declare
+V.Local.sSQLVoids.Declare
+V.Local.sSQLHist.Declare
+V.Local.sSQLHistVoids.Declare
+V.Local.sAccount.Declare
+V.Local.sCheck.Declare
+V.Local.sVoid.Declare
+V.Local.sAmount.Declare
+V.Local.sPayee.Declare
+V.Local.sFileString.Declare
+V.Local.sFile.Declare
+V.Local.iCnt.Declare
+V.Local.dBegDate.Declare
+V.Local.dEndDate.Declare
+F.Intrinsic.Control.Try
+
+Gui.F_Main..Visible(False)
+
+'Save file info
+F.Data.DataView.SetValue("dtFile","dvFileName",0,"VALUE",V.Screen.F_Main!txtFileName.Text)
+F.Data.DataView.SetValue("dtFile","dvFileLoc",0,"VALUE",V.Screen.F_Main!txtFileLoc.Text)
+
+V.Local.dBegDate.Set(V.Screen.F_Main!dtpBegDate.Value)
+V.Local.dEndDate.Set(V.Screen.F_Main!dtpEndDate.Value)
+F.Intrinsic.String.Build("select rtrim(GL_NUMBER) as GL_NUMBER, rtrim(CHECK_NUMBER) as CHECK_NUMBER, rtrim(CHECK_DATE) as DATE, CHECK_NET_CMPNY, rtrim(CUST_VENDOR) as CUST_VENDOR, if(CHECK_CODE = 2, 'V', ' ') as VOID from GL_AP_CHECK_DTL where CHECK_DATE_SQL between '{0}' and '{1}';",V.Local.dBegDate.PervasiveDate,V.Local.dEndDate.PervasiveDate,V.Local.sSQL)
+F.Intrinsic.String.Build("select rtrim(GL_NUMBER) as GL_NUMBER, rtrim(CHECK_NUMBER) as CHECK_NUMBER, rtrim(CHECK_DATE) as DATE, CHECK_NET_CMPNY, rtrim(CUST_VENDOR) as CUST_VENDOR, if(CHECK_CODE = 2, 'V', ' ') as VOID from GL_AP_CHECK_DTL_H where CHECK_DATE_SQL between '{0}' and '{1}';",V.Local.dBegDate.PervasiveDate,V.Local.dEndDate.PervasiveDate,V.Local.sSQLHist)
+F.ODBC.Connection!con.OpenCompanyConnection
+F.Data.DataTable.SaveToDB("dtFile","con","GCG_5801_DATA","DATA_KEY",7)
+F.Data.DataTable.CreateFromSQL("dtChecks","con",V.Local.sSQL)
+F.Data.DataTable.CreateFromSQL("dtChecksHist","con",V.Local.sSQLHist)
+F.Data.DataTable.CreateFromSQL("dtVendors","con","select rtrim(VENDOR) as VENDOR, rtrim(NAME_VENDOR) as NAME_VENDOR from V_VENDOR_MASTER;")
+F.ODBC.Connection!con.Close
+
+F.Data.DataTable.Merge("dtChecksHist","dtChecks",True,3)
+F.Data.DataTable.Close("dtChecksHist")
+
+F.Data.DataTable.AddColumn("dtChecks","AMOUNT","String")
+
+F.Data.Linq.Join("LeftJoin","DataTable","dtChecks*!*CHECKS","DataTable","dtVendors*!*VEND","CHECKS.CUST_VENDOR = VEND.VENDOR","CHECKS.GL_NUMBER*!*CHECKS.CHECK_NUMBER*!*CHECKS.VOID*!*CHECKS.DATE*!*CHECKS.CHECK_NET_CMPNY*!*CHECKS.AMOUNT*!*VEND.NAME_VENDOR",,,"CHECKS.DATE asc, CHECKS.GL_NUMBER asc, CHECKS.CHECK_NUMBER asc","dtChecksList",False)
+F.Data.DataTable.Close("dtChecks")
+F.Data.DataTable.Close("dtVendors")
+F.Data.DataView.Create("dtChecksList","dvExport")
+
+'Loop through data and format it
+F.Intrinsic.Control.If(V.DataTable.dtChecksList.RowCount,>,1)
+	F.Intrinsic.UI.InvokeWaitDialog("Processing check data")
+	F.Intrinsic.UI.ChangeWaitStatus("Processing check data",0,0,V.DataTable.dtChecksList.RowCount--)
+F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.For(V.Local.iCnt,0,V.DataTable.dtChecksList.RowCount--,1)
+	F.Intrinsic.Control.If(V.DataTable.dtChecksList.RowCount,>,1)
+		F.Intrinsic.UI.ChangeWaitStatus("Processing check data",V.Local.iCnt,0,V.DataTable.dtChecksList.RowCount--)
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.String.RPad(V.DataTable.dtChecksList(V.Local.iCnt).GL_NUMBER!FieldVal," ",15,V.Local.sAccount)
+	F.Intrinsic.String.RPad(V.DataTable.dtChecksList(V.Local.iCnt).CHECK_NUMBER!FieldVal," ",20,V.Local.sCheck)
+	F.Intrinsic.String.RPad(V.DataTable.dtChecksList(V.Local.iCnt).VOID!FieldVal," ",1,V.Local.sVoid)
+	F.Intrinsic.String.Format(V.DataTable.dtChecksList(V.Local.iCnt).CHECK_NET_CMPNY!FieldVal,"00000000000.0000",V.Local.sAmount)
+	F.Intrinsic.String.RPad(V.DataTable.dtChecksList(V.Local.iCnt).NAME_VENDOR!FieldVal," ",30,V.Local.sPayee)
+	
+	F.Data.DataTable.SetValue("dtChecksList",V.Local.iCnt,"GL_NUMBER",V.Local.sAccount,"CHECK_NUMBER",V.Local.sCheck,"VOID",V.Local.sVoid,"AMOUNT",V.Local.sAmount,"NAME_VENDOR",V.Local.sPayee)
+F.Intrinsic.Control.Next(V.Local.iCnt)
+F.Data.DataTable.RemoveColumn("dtChecksList","CHECK_NET_CMPNY")
+F.Intrinsic.Control.If(V.DataTable.dtChecksList.RowCount,>,1)
+	F.Intrinsic.UI.CloseWaitDialog
+F.Intrinsic.Control.EndIf
+
+'Data is formatted, just send to a string and export to file on screen
+F.Data.DataView.ToString("dtChecksList","dvExport","",V.Ambient.NewLine,V.Local.sFileString)
+F.Intrinsic.String.Build("{0}{1}",V.DataView.dtFile!dvFileLoc(0).VALUE!FieldVal,V.DataView.dtFile!dvFileName(0).VALUE!FieldVal,V.Local.sFile)
+
+F.Intrinsic.File.CreateDir(V.DataView.dtFile!dvFileLoc(0).VALUE!FieldVal)
+F.Intrinsic.File.String2File(V.Local.sFile,V.Local.sFileString)
+
+F.Data.DataTable.Close("dtChecksList")
+F.Data.DataTable.Close("dtFile")
+
+F.Intrinsic.Control.If(V.Screen.F_Main!chkOpen.CheckedAsBoolean)
+	F.Intrinsic.Task.ShellExec(-1,"OPEN",V.Local.sFile,,,0)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMessage,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdGenerate_Click.End
+
+Program.Sub.DailyExport.Start
+V.Local.sSQL.Declare
+V.Local.sSQLVoids.Declare
+V.Local.sSQLHist.Declare
+V.Local.sSQLHistVoids.Declare
+V.Local.sAccount.Declare
+V.Local.sCheck.Declare
+V.Local.sVoid.Declare
+V.Local.sAmount.Declare
+V.Local.sPayee.Declare
+V.Local.sFileString.Declare
+V.Local.sFile.Declare
+V.Local.iCnt.Declare
+F.Intrinsic.Control.Try
+
+F.Intrinsic.String.Build("select rtrim(GL_NUMBER) as GL_NUMBER, rtrim(CHECK_NUMBER) as CHECK_NUMBER, rtrim(CHECK_DATE) as DATE, CHECK_NET_CMPNY, rtrim(CUST_VENDOR) as CUST_VENDOR, if(CHECK_CODE = 2, 'V', ' ') as VOID from GL_AP_CHECK_DTL where CHECK_DATE_SQL = '{0}';",V.Ambient.Date.PervasiveDate,V.Local.sSQL)
+F.Intrinsic.String.Build("select rtrim(GL_NUMBER) as GL_NUMBER, rtrim(CHECK_NUMBER) as CHECK_NUMBER, rtrim(CHECK_DATE) as DATE, CHECK_NET_CMPNY, rtrim(CUST_VENDOR) as CUST_VENDOR, if(CHECK_CODE = 2, 'V', ' ') as VOID from GL_AP_CHECK_DTL_H where CHECK_DATE_SQL = '{0}' ;",V.Ambient.Date.PervasiveDate,V.Local.sSQLHist)
+F.ODBC.Connection!con.OpenCompanyConnection
+F.Data.DataTable.CreateFromSQL("dtChecks","con",V.Local.sSQL)
+F.Data.DataTable.CreateFromSQL("dtChecksHist","con",V.Local.sSQLHist)
+F.Data.DataTable.CreateFromSQL("dtVendors","con","select rtrim(VENDOR) as VENDOR, rtrim(NAME_VENDOR) as NAME_VENDOR from V_VENDOR_MASTER;")
+F.ODBC.Connection!con.Close
+
+F.Data.DataTable.Merge("dtChecksHist","dtChecks",True,3)
+F.Data.DataTable.Close("dtChecksHist")
+
+F.Data.DataTable.AddColumn("dtChecks","AMOUNT","String")
+
+F.Data.Linq.Join("LeftJoin","DataTable","dtChecks*!*CHECKS","DataTable","dtVendors*!*VEND","CHECKS.CUST_VENDOR = VEND.VENDOR","CHECKS.GL_NUMBER*!*CHECKS.CHECK_NUMBER*!*CHECKS.VOID*!*CHECKS.DATE*!*CHECKS.CHECK_NET_CMPNY*!*CHECKS.AMOUNT*!*VEND.NAME_VENDOR",,,"CHECKS.DATE asc, CHECKS.GL_NUMBER asc, CHECKS.CHECK_NUMBER asc","dtChecksList",False)
+F.Data.DataTable.Close("dtChecks")
+F.Data.DataTable.Close("dtVendors")
+F.Data.DataView.Create("dtChecksList","dvExport")
+
+'Loop through data and format it
+F.Intrinsic.Control.If(V.DataTable.dtChecksList.RowCount,>,1)
+	F.Intrinsic.UI.InvokeWaitDialog("Processing check data for positive pay export")
+	F.Intrinsic.UI.ChangeWaitStatus("Processing check data for positive pay export",0,0,V.DataTable.dtChecksList.RowCount--)
+F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.For(V.Local.iCnt,0,V.DataTable.dtChecksList.RowCount--,1)
+	F.Intrinsic.Control.If(V.DataTable.dtChecksList.RowCount,>,1)
+		F.Intrinsic.UI.ChangeWaitStatus("Processing check data for positive pay export",V.Local.iCnt,0,V.DataTable.dtChecksList.RowCount--)
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.String.RPad(V.DataTable.dtChecksList(V.Local.iCnt).GL_NUMBER!FieldVal," ",15,V.Local.sAccount)
+	F.Intrinsic.String.RPad(V.DataTable.dtChecksList(V.Local.iCnt).CHECK_NUMBER!FieldVal," ",20,V.Local.sCheck)
+	F.Intrinsic.String.RPad(V.DataTable.dtChecksList(V.Local.iCnt).VOID!FieldVal," ",1,V.Local.sVoid)
+	F.Intrinsic.String.Format(V.DataTable.dtChecksList(V.Local.iCnt).CHECK_NET_CMPNY!FieldVal,"00000000000.0000",V.Local.sAmount)
+	F.Intrinsic.String.RPad(V.DataTable.dtChecksList(V.Local.iCnt).NAME_VENDOR!FieldVal," ",30,V.Local.sPayee)
+	
+	F.Data.DataTable.SetValue("dtChecksList",V.Local.iCnt,"GL_NUMBER",V.Local.sAccount,"CHECK_NUMBER",V.Local.sCheck,"VOID",V.Local.sVoid,"AMOUNT",V.Local.sAmount,"NAME_VENDOR",V.Local.sPayee)
+F.Intrinsic.Control.Next(V.Local.iCnt)
+F.Data.DataTable.RemoveColumn("dtChecksList","CHECK_NET_CMPNY")
+F.Intrinsic.Control.If(V.DataTable.dtChecksList.RowCount,>,1)
+	F.Intrinsic.UI.CloseWaitDialog
+F.Intrinsic.Control.EndIf
+
+'Data is formatted, just send to a string and export to file on screen
+F.Data.DataView.ToString("dtChecksList","dvExport","",V.Ambient.NewLine,V.Local.sFileString)
+F.Intrinsic.String.Build("{0}{1}",V.DataView.dtFile!dvFileLoc(0).VALUE!FieldVal,V.DataView.dtFile!dvFileName(0).VALUE!FieldVal,V.Local.sFile)
+
+F.Intrinsic.File.CreateDir(V.DataView.dtFile!dvFileLoc(0).VALUE!FieldVal)
+F.Intrinsic.File.String2File(V.Local.sFile,V.Local.sFileString)
+
+F.Data.DataTable.Close("dtChecksList")
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"ProjectID","5801")
+F.Intrinsic.Control.EndTry
+Program.Sub.DailyExport.End
+
+Program.Sub.RemoveOldFiles.Start
+'Arguments: Length
+V.Local.sFileList.Declare
+V.Local.sFile.Declare
+V.Local.sDailyFile.Declare
+V.Local.sFilePath.Declare
+V.Local.dFile.Declare
+V.Local.iFile.Declare
+V.Local.iDateDiff.Declare
+F.Intrinsic.Control.Try
+
+F.Intrinsic.File.GetFileList(V.DataView.dtFile!dvFileLoc(0).VALUE!FieldVal,V.Local.sFileList)
+F.Intrinsic.String.Split(V.Local.sFileList,":",V.Local.sFileList)
+
+V.Local.sFile.Set(v.DataView.dtFile!dvFileName(0).VALUE!FieldVal)
+
+F.Intrinsic.Control.For(V.Local.iFile,0,V.Local.sFileList.UBound,1)
+	F.Intrinsic.Control.If(V.Local.sFileList(V.Local.iFile).Left[V.Args.Length],=,V.Local.sFile.Left[V.Args.Length],"and",V.Local.sFileList(V.Local.iFile).Right4,=,V.Local.sFile.Right4,V.Local.sFileList(V.Local.iFile),!=,V.Local.sFile)
+		V.Local.sDailyFile.Set(V.Local.sFileList(V.Local.iFile).Right12)
+		V.Local.sDailyFile.Set(V.Local.sDailyFile.Left8)
+		F.Intrinsic.Date.ConvertDString(V.Local.sDailyFile,"YYYYMMDD",V.Local.dFile)
+		F.Intrinsic.Date.DateDiff("d",V.Local.dFile,V.Ambient.Date,V.Local.iDateDiff)
+		F.Intrinsic.Control.If(V.Local.iDateDiff,>,30)
+			F.Intrinsic.String.Build("{0}{1}",V.DataView.dtFile!dvFileLoc(0).VALUE!FieldVal,V.Local.sFileList(V.Local.iFile),V.Local.sFilePath)
+			F.Intrinsic.File.DeleteFile(V.Local.sFilePath)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.iFile)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorLog,"ScriptFile",V.Caller.ScriptFile,"CurrentSubroutine",V.Ambient.CurrentSubroutine,"ProjectID","5801")
+F.Intrinsic.Control.EndTry
+Program.Sub.RemoveOldFiles.End
